@@ -38,7 +38,6 @@
 #include <infiniband/verbs.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h> /* for INT_MAX */
 #include <sys/time.h>
 
 #if !defined(IBV_FLOW_ATTR_SNIFFER)
@@ -89,7 +88,7 @@ rdmasniff_cleanup(pcap_t *handle)
 	ibv_close_device(priv->context);
 	free(priv->oneshot_buffer);
 
-	pcapint_cleanup_live_common(handle);
+	pcap_cleanup_live_common(handle);
 }
 
 static void
@@ -137,30 +136,15 @@ rdmasniff_read(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 		priv->cq_event = 1;
 	}
 
-	/*
-	 * This can conceivably process more than INT_MAX packets,
-	 * which would overflow the packet count, causing it either
-	 * to look like a negative number, and thus cause us to
-	 * return a value that looks like an error, or overflow
-	 * back into positive territory, and thus cause us to
-	 * return a too-low count.
-	 *
-	 * Therefore, if the packet count is unlimited, we clip
-	 * it at INT_MAX; this routine is not expected to
-	 * process packets indefinitely, so that's not an issue.
-	 */
-	if (PACKET_COUNT_IS_UNLIMITED(max_packets))
-		max_packets = INT_MAX;
-
-	while (count < max_packets) {
+	while (count < max_packets || PACKET_COUNT_IS_UNLIMITED(max_packets)) {
 		if (ibv_poll_cq(priv->cq, 1, &wc) != 1) {
 			priv->cq_event = 0;
 			break;
 		}
 
 		if (wc.status != IBV_WC_SUCCESS) {
-			fprintf(stderr, "failed WC wr_id %" PRIu64 " status %d/%s\n",
-				wc.wr_id,
+			fprintf(stderr, "failed WC wr_id %lld status %d/%s\n",
+				(unsigned long long) wc.wr_id,
 				wc.status, ibv_wc_status_str(wc.status));
 			continue;
 		}
@@ -169,10 +153,10 @@ rdmasniff_read(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 		pkth.caplen = min(pkth.len, (u_int)handle->snapshot);
 		gettimeofday(&pkth.ts, NULL);
 
-		pktd = handle->buffer + wc.wr_id * RDMASNIFF_RECEIVE_SIZE;
+		pktd = (u_char *) handle->buffer + wc.wr_id * RDMASNIFF_RECEIVE_SIZE;
 
 		if (handle->fcode.bf_insns == NULL ||
-		    pcapint_filter(handle->fcode.bf_insns, pktd, pkth.len, pkth.caplen)) {
+		    pcap_filter(handle->fcode.bf_insns, pktd, pkth.len, pkth.caplen)) {
 			callback(user, &pkth, pktd);
 			++priv->packets_recv;
 			++count;
@@ -323,11 +307,11 @@ rdmasniff_activate(pcap_t *handle)
 	handle->read_op = rdmasniff_read;
 	handle->stats_op = rdmasniff_stats;
 	handle->cleanup_op = rdmasniff_cleanup;
-	handle->setfilter_op = pcapint_install_bpf_program;
+	handle->setfilter_op = install_bpf_program;
 	handle->setdirection_op = NULL;
 	handle->set_datalink_op = NULL;
-	handle->getnonblock_op = pcapint_getnonblock_fd;
-	handle->setnonblock_op = pcapint_setnonblock_fd;
+	handle->getnonblock_op = pcap_getnonblock_fd;
+	handle->setnonblock_op = pcap_setnonblock_fd;
 	handle->oneshot_callback = rdmasniff_oneshot;
 	handle->selectable_fd = priv->channel->fd;
 
@@ -444,7 +428,7 @@ rdmasniff_findalldevs(pcap_if_list_t *devlistp, char *err_str)
 		 * XXX - do the notions of "up", "running", or
 		 * "connected" apply here?
 		 */
-		if (!pcapint_add_dev(devlistp, dev_list[i]->name, 0, "RDMA sniffer", err_str)) {
+		if (!add_dev(devlistp, dev_list[i]->name, 0, "RDMA sniffer", err_str)) {
 			ret = -1;
 			break;
 		}

@@ -41,15 +41,8 @@ endif()
 
 add_test_executable(threadsignaltest ${CMAKE_THREAD_LIBS_INIT})
 
-# Same as in configure.ac.
-if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" OR
-   CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR
-   CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if(NOT WIN32)
   add_test_executable(valgrindtest)
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" OR
-   CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR
-   CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  add_subdirectory(fuzz)
-endif()
+add_subdirectory(fuzz)

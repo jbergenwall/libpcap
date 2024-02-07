@@ -1,4 +1,4 @@
-/*	$OpenBSD: strlcat.c,v 1.15 2015/03/02 21:41:08 millert Exp $	*/
+/*	$OpenBSD: pcap_strlcat.c,v 1.15 2015/03/02 21:41:08 millert Exp $	*/
 
 /*
  * Copyright (c) 1998, 2015 Todd C. Miller <Todd.Miller@courtesan.com>
@@ -33,7 +33,7 @@
  * If retval >= dsize, truncation occurred.
  */
 size_t
-pcapint_strlcat(char * restrict dst, const char * restrict src, size_t dsize)
+pcap_strlcat(char * restrict dst, const char * restrict src, size_t dsize)
 {
 	const char *odst = dst;
 	const char *osrc = src;

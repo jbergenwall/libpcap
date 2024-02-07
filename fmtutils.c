@@ -62,19 +62,19 @@
  */
 #ifdef _WIN32
 /*
- * True if we should use UTF-8.
+ * True if we shouold use UTF-8.
  */
 static int use_utf_8;
 
 void
-pcapint_fmt_set_encoding(unsigned int opts)
+pcap_fmt_set_encoding(unsigned int opts)
 {
 	if (opts == PCAP_CHAR_ENC_UTF_8)
 		use_utf_8 = 1;
 }
 #else
 void
-pcapint_fmt_set_encoding(unsigned int opts _U_)
+pcap_fmt_set_encoding(unsigned int opts _U_)
 {
 	/*
 	 * Nothing to do here.
@@ -154,7 +154,7 @@ utf_16le_to_utf_8_truncated(const wchar_t *utf_16, char *utf_8,
 					uc = SURROGATE_VALUE(c, c2);
 				} else {
 					/*
-					 * Not a trailing surrogate;
+					 * Not a trailing surroage;
 					 * try to drop in a
 					 * REPLACEMENT CHARACTER.
 					 */
@@ -266,25 +266,17 @@ utf_16le_to_utf_8_truncated(const wchar_t *utf_16, char *utf_8,
  * errno, with a message for the errno after the formatted output.
  */
 void
-pcapint_fmt_errmsg_for_errno(char *errbuf, size_t errbuflen, int errnum,
+pcap_fmt_errmsg_for_errno(char *errbuf, size_t errbuflen, int errnum,
     const char *fmt, ...)
 {
 	va_list ap;
-
-	va_start(ap, fmt);
-	pcapint_vfmt_errmsg_for_errno(errbuf, errbuflen, errnum, fmt, ap);
-	va_end(ap);
-}
-
-void
-pcapint_vfmt_errmsg_for_errno(char *errbuf, size_t errbuflen, int errnum,
-    const char *fmt, va_list ap)
-{
 	size_t msglen;
 	char *p;
 	size_t errbuflen_remaining;
 
-	(void)vsnprintf(errbuf, errbuflen, fmt, ap);
+	va_start(ap, fmt);
+	vsnprintf(errbuf, errbuflen, fmt, ap);
+	va_end(ap);
 	msglen = strlen(errbuf);
 
 	/*
@@ -382,20 +374,10 @@ pcapint_vfmt_errmsg_for_errno(char *errbuf, size_t errbuflen, int errnum,
  * Win32 error, with a message for the Win32 error after the formatted output.
  */
 void
-pcapint_fmt_errmsg_for_win32_err(char *errbuf, size_t errbuflen, DWORD errnum,
+pcap_fmt_errmsg_for_win32_err(char *errbuf, size_t errbuflen, DWORD errnum,
     const char *fmt, ...)
 {
 	va_list ap;
-
-	va_start(ap, fmt);
-	pcapint_vfmt_errmsg_for_win32_err(errbuf, errbuflen, errnum, fmt, ap);
-	va_end(ap);
-}
-
-void
-pcapint_vfmt_errmsg_for_win32_err(char *errbuf, size_t errbuflen, DWORD errnum,
-    const char *fmt, va_list ap)
-{
 	size_t msglen;
 	char *p;
 	size_t errbuflen_remaining;
@@ -403,7 +385,9 @@ pcapint_vfmt_errmsg_for_win32_err(char *errbuf, size_t errbuflen, DWORD errnum,
 	wchar_t utf_16_errbuf[PCAP_ERRBUF_SIZE];
 	size_t utf_8_len;
 
+	va_start(ap, fmt);
 	vsnprintf(errbuf, errbuflen, fmt, ap);
+	va_end(ap);
 	msglen = strlen(errbuf);
 
 	/*

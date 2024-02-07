@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993, 1994, 1995, 1996, 1997
+ * Copyright (c) 1990, 1993, 1994, 1995, 1996
  *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -17,10 +17,20 @@
  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND WITHOUT ANY EXPRESS OR IMPLIED
  * WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
- *
- * pcap-usb-linux-common.h - common code for everything that needs to
- * deal with Linux USB captures.
  */
 
-extern void fix_linux_usb_mmapped_length(struct pcap_pkthdr *pkth,
-    const u_char *bp);
+/* Prototypes missing in Ultrix 4 */
+int	bcmp(const char *, const char *, u_int);
+void	bcopy(const void *, void *, u_int);
+void	bzero(void *, u_int);
+int	getopt(int, char * const *, const char *);
+#ifdef __STDC__
+struct timeval;
+struct timezone;
+#endif
+int	gettimeofday(struct timeval *, struct timezone *);
+int	ioctl(int, int, caddr_t);
+int	pfopen(char *, int);
+int	setlinebuf(FILE *);
+int	socket(int, int, int);
+int	strcasecmp(const char *, const char *);

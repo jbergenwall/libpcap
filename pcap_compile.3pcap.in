@@ -28,7 +28,8 @@ pcap_compile \- compile a filter expression
 .LP
 .ft B
 int pcap_compile(pcap_t *p, struct bpf_program *fp,
-    const char *str, int optimize, bpf_u_int32 netmask);
+.ti +8
+const char *str, int optimize, bpf_u_int32 netmask);
 .ft
 .fi
 .SH DESCRIPTION
@@ -36,9 +37,9 @@ int pcap_compile(pcap_t *p, struct bpf_program *fp,
 is used to compile the string
 .I str
 into a filter program.  See
-.BR \%pcap-filter (@MAN_MISC_INFO@)
+.BR pcap-filter (@MAN_MISC_INFO@)
 for the syntax of that string.
-.I fp
+.I program
 is a pointer to a
 .I bpf_program
 struct and is filled in by

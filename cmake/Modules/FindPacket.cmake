@@ -28,14 +28,14 @@
 #
 # This module defines the following variables:
 #
-# Packet_INCLUDE_DIR     - absolute path to the directory containing Packet32.h.
+# PACKET_INCLUDE_DIR     - absolute path to the directory containing Packet32.h.
 #
-# Packet_LIBRARY         - relative or absolute path to the Packet library to
+# PACKET_LIBRARY         - relative or absolute path to the Packet library to
 #                          link with. An absolute path is will be used if the
 #                          Packet library is not located in the compiler's
 #                          default search path.
 
-# Packet_FOUND           - TRUE if the Packet library *and* header are found.
+# PACKET_FOUND           - TRUE if the Packet library *and* header are found.
 #
 # Hints and Backward Compatibility
 # ================================
@@ -72,7 +72,7 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 
   file(WRITE "${CMAKE_BINARY_DIR}/archdetect.c" "${archdetect_c_code}")
   try_compile(
-	  IsArm64
+	  IsArm64 
 	  "${CMAKE_BINARY_DIR}/archdetect"
 	  "${CMAKE_BINARY_DIR}/archdetect.c"
 	  )
@@ -86,24 +86,24 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif()
 
 # Find the header
-find_path(Packet_INCLUDE_DIR Packet32.h
+find_path(PACKET_INCLUDE_DIR Packet32.h
   PATH_SUFFIXES include Include
 )
 
 # Find the library
-find_library(Packet_LIBRARY
+find_library(PACKET_LIBRARY
   NAMES Packet packet
 )
 
-# Set Packet_FOUND to TRUE if Packet_INCLUDE_DIR and Packet_LIBRARY are TRUE.
+# Set PACKET_FOUND to TRUE if PACKET_INCLUDE_DIR and PACKET_LIBRARY are TRUE.
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(Packet
+find_package_handle_standard_args(PACKET
   DEFAULT_MSG
-  Packet_INCLUDE_DIR
-  Packet_LIBRARY
+  PACKET_INCLUDE_DIR
+  PACKET_LIBRARY
 )
 
-mark_as_advanced(Packet_INCLUDE_DIR Packet_LIBRARY)
+mark_as_advanced(PACKET_INCLUDE_DIR PACKET_LIBRARY)
 
-set(Packet_INCLUDE_DIRS ${Packet_INCLUDE_DIR})
-set(Packet_LIBRARIES ${Packet_LIBRARY})
+set(PACKET_INCLUDE_DIRS ${PACKET_INCLUDE_DIR})
+set(PACKET_LIBRARIES ${PACKET_LIBRARY})

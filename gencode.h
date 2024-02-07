@@ -19,19 +19,7 @@
  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef gencode_h
-#define gencode_h
-
 #include "pcap/funcattrs.h"
-/*
- * pcap/bpf.h (a public header) needs u_char, u_short and u_int, which can be
- * made available via either pcap-types.h (a private header) or pcap/pcap.h
- * (a public header), none of which pcap/bpf.h includes.  Include the private
- * header to keep things simple, this way this private header should compile
- * even if included early from another file.
- */
-#include "pcap-types.h"
-#include "pcap/bpf.h" /* bpf_u_int32 and BPF_MEMWORDS */
 
 /*
  * ATM support:
@@ -327,8 +315,8 @@ struct block *gen_acode(compiler_state_t *, const char *, struct qual);
 struct block *gen_mcode(compiler_state_t *, const char *, const char *,
     bpf_u_int32, struct qual);
 #ifdef INET6
-struct block *gen_mcode6(compiler_state_t *, const char *, bpf_u_int32,
-    struct qual);
+struct block *gen_mcode6(compiler_state_t *, const char *, const char *,
+    bpf_u_int32, struct qual);
 #endif
 struct block *gen_ncode(compiler_state_t *, const char *, bpf_u_int32,
     struct qual);
@@ -412,5 +400,3 @@ int pcap_parse(void *, compiler_state_t *);
 /* XXX */
 #define JT(b)  ((b)->et.succ)
 #define JF(b)  ((b)->ef.succ)
-
-#endif /* gencode_h */

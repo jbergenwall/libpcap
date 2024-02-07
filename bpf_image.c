@@ -44,8 +44,6 @@
 
 #include "pcap-int.h"
 
-#include "thread-local.h"
-
 #ifdef HAVE_OS_PROTO_H
 #include "os-proto.h"
 #endif
@@ -132,7 +130,7 @@ char *
 bpf_image(const struct bpf_insn *p, int n)
 {
 	const char *op;
-	static thread_local char image[256];
+	static char image[256];
 	char operand_buf[64];
 	const char *operand;
 

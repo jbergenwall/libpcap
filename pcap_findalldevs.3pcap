@@ -51,14 +51,6 @@ process calling
 because, for example, that process does not have sufficient privileges
 to open them for capturing; if so, those devices will not appear on the
 list.)
-.I alldevsp
-is a pointer to a
-.BR pcap_if_t *;
-.I errbuf
-is a buffer large enough to hold at least
-.B PCAP_ERRBUF_SIZE
-chars.
-.PP
 If
 .BR pcap_findalldevs ()
 succeeds, the pointer pointed to by
@@ -166,9 +158,7 @@ a pointer to a
 that contains the broadcast address corresponding to the address pointed
 to by
 .BR addr ;
-may be
-.B NULL
-if the device doesn't support broadcasts
+may be null if the device doesn't support broadcasts
 .TP
 .B dstaddr
 if not
@@ -178,9 +168,7 @@ a pointer to a
 that contains the destination address corresponding to the address pointed
 to by
 .BR addr ;
-may be
-.B NULL
-if the device isn't a point-to-point interface
+may be null if the device isn't a point-to-point interface
 .RE
 .PP
 Note that the addresses in the list of addresses might be IPv4
@@ -216,14 +204,16 @@ returns
 on success and
 .B PCAP_ERROR
 on failure; as indicated, finding no
-devices is considered success, rather than failure, so
-.B 0
-will be
+devices is considered success, rather than failure, so 0 will be
 returned in that case. If
 .B PCAP_ERROR
 is returned,
 .I errbuf
 is filled in with an appropriate error message.
+.I errbuf
+is assumed to be able to hold at least
+.B PCAP_ERRBUF_SIZE
+chars.
 .SH BACKWARD COMPATIBILITY
 .PP
 The

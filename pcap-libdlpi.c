@@ -80,7 +80,7 @@ list_interfaces(const char *linkname, void *arg)
 		lwp->lw_err = ENOMEM;
 		return (B_TRUE);
 	}
-	(void) pcapint_strlcpy(entry->linkname, linkname, DLPI_LINKNAME_MAX);
+	(void) pcap_strlcpy(entry->linkname, linkname, DLPI_LINKNAME_MAX);
 
 	if (lwp->lw_list == NULL) {
 		lwp->lw_list = entry;
@@ -108,24 +108,15 @@ pcap_activate_libdlpi(pcap_t *p)
 	 */
 	retv = dlpi_open(p->opt.device, &dh, DLPI_RAW|DLPI_PASSIVE);
 	if (retv != DLPI_SUCCESS) {
-		if (retv == DLPI_ELINKNAMEINVAL || retv == DLPI_ENOLINK) {
-			/*
-			 * There's nothing more to say, so clear the
-			 * error message.
-			 */
+		if (retv == DLPI_ELINKNAMEINVAL || retv == DLPI_ENOLINK)
 			status = PCAP_ERROR_NO_SUCH_DEVICE;
-			p->errbuf[0] = '\0';
-		} else if (retv == DL_SYSERR &&
-		    (errno == EPERM || errno == EACCES)) {
+		else if (retv == DL_SYSERR &&
+		    (errno == EPERM || errno == EACCES))
 			status = PCAP_ERROR_PERM_DENIED;
-			snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-			    "Attempt to open DLPI device failed with %s - root privilege may be required",
-			    (errno == EPERM) ? "EPERM" : "EACCES");
-		} else {
+		else
 			status = PCAP_ERROR;
-			pcap_libdlpi_err(p->opt.device, "dlpi_open", retv,
-			    p->errbuf);
-		}
+		pcap_libdlpi_err(p->opt.device, "dlpi_open", retv,
+		    p->errbuf);
 		return (status);
 	}
 	pd->dlpi_hd = dh;
@@ -229,7 +220,7 @@ pcap_activate_libdlpi(pcap_t *p)
 	 */
 	if (ioctl(p->fd, I_FLUSH, FLUSHR) != 0) {
 		status = PCAP_ERROR;
-		pcapint_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "FLUSHR");
 		goto bad;
 	}
@@ -248,11 +239,11 @@ pcap_activate_libdlpi(pcap_t *p)
 
 	p->read_op = pcap_read_libdlpi;
 	p->inject_op = pcap_inject_libdlpi;
-	p->setfilter_op = pcapint_install_bpf_program;	/* No kernel filtering */
+	p->setfilter_op = install_bpf_program;	/* No kernel filtering */
 	p->setdirection_op = NULL;	/* Not implemented */
 	p->set_datalink_op = NULL;	/* Can't change data link type */
-	p->getnonblock_op = pcapint_getnonblock_fd;
-	p->setnonblock_op = pcapint_setnonblock_fd;
+	p->getnonblock_op = pcap_getnonblock_fd;
+	p->setnonblock_op = pcap_setnonblock_fd;
 	p->stats_op = pcap_stats_dlpi;
 	p->cleanup_op = pcap_cleanup_libdlpi;
 
@@ -274,25 +265,12 @@ dlpromiscon(pcap_t *p, bpf_u_int32 level)
 	retv = dlpi_promiscon(pd->dlpi_hd, level);
 	if (retv != DLPI_SUCCESS) {
 		if (retv == DL_SYSERR &&
-		    (errno == EPERM || errno == EACCES)) {
-			if (level == DL_PROMISC_PHYS) {
-				err = PCAP_ERROR_PROMISC_PERM_DENIED;
-				snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-				    "Attempt to set promiscuous mode failed with %s - root privilege may be required",
-				    (errno == EPERM) ? "EPERM" : "EACCES");
-			} else {
-				err = PCAP_ERROR_PERM_DENIED;
-				snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-				    "Attempt to set %s mode failed with %s - root privilege may be required",
-				    (level == DL_PROMISC_MULTI) ? "multicast" : "SAP promiscuous",
-				    (errno == EPERM) ? "EPERM" : "EACCES");
-			}
-		} else {
+		    (errno == EPERM || errno == EACCES))
+			err = PCAP_ERROR_PERM_DENIED;
+		else
 			err = PCAP_ERROR;
-			pcap_libdlpi_err(p->opt.device,
-			    "dlpi_promiscon" STRINGIFY(level),
-			    retv, p->errbuf);
-		}
+		pcap_libdlpi_err(p->opt.device, "dlpi_promiscon" STRINGIFY(level),
+		    retv, p->errbuf);
 		return (err);
 	}
 	return (0);
@@ -338,18 +316,18 @@ get_if_flags(const char *name _U_, bpf_u_int32 *flags _U_, char *errbuf _U_)
  * additional network links present in the system.
  */
 int
-pcapint_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
+pcap_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
 {
 	int retv = 0;
 
 	linknamelist_t	*entry, *next;
 	linkwalk_t	lw = {NULL, 0};
-	int		save_errno;
+	int 		save_errno;
 
 	/*
 	 * Get the list of regular interfaces first.
 	 */
-	if (pcapint_findalldevs_interfaces(devlistp, errbuf,
+	if (pcap_findalldevs_interfaces(devlistp, errbuf,
 	    is_dlpi_interface, get_if_flags) == -1)
 		return (-1);	/* failure */
 
@@ -358,14 +336,14 @@ pcapint_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
 	/*
 	 * Find all DLPI devices in the current zone.
 	 *
-	 * XXX - will pcapint_findalldevs_interfaces() find any devices
+	 * XXX - will pcap_findalldevs_interfaces() find any devices
 	 * outside the current zone?  If not, the only reason to call
 	 * it would be to get the interface addresses.
 	 */
 	dlpi_walk(list_interfaces, &lw, 0);
 
 	if (lw.lw_err != 0) {
-		pcapint_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
+		pcap_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
 		    lw.lw_err, "dlpi_walk");
 		retv = -1;
 		goto done;
@@ -377,7 +355,7 @@ pcapint_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
 		 * If it isn't already in the list of devices, try to
 		 * add it.
 		 */
-		if (pcapint_find_or_add_dev(devlistp, entry->linkname, 0, get_if_flags,
+		if (find_or_add_dev(devlistp, entry->linkname, 0, get_if_flags,
 		    NULL, errbuf) == NULL)
 			retv = -1;
 	}
@@ -423,7 +401,7 @@ pcap_read_libdlpi(pcap_t *p, int count, pcap_handler callback, u_char *user)
 		}
 
 		msglen = p->bufsize;
-		bufp = p->buffer + p->offset;
+		bufp = (u_char *)p->buffer + p->offset;
 
 		retv = dlpi_recv(pd->dlpi_hd, NULL, NULL, bufp,
 		    &msglen, -1, NULL);
@@ -481,7 +459,7 @@ pcap_cleanup_libdlpi(pcap_t *p)
 		pd->dlpi_hd = NULL;
 		p->fd = -1;
 	}
-	pcapint_cleanup_live_common(p);
+	pcap_cleanup_live_common(p);
 }
 
 /*
@@ -495,7 +473,7 @@ pcap_libdlpi_err(const char *linkname, const char *func, int err, char *errbuf)
 }
 
 pcap_t *
-pcapint_create_interface(const char *device _U_, char *ebuf)
+pcap_create_interface(const char *device _U_, char *ebuf)
 {
 	pcap_t *p;
 

@@ -26,6 +26,11 @@
 #include <config.h>
 #endif
 
+#ifdef DECNETLIB
+#include <sys/types.h>
+#include <netdnet/dnetdb.h>
+#endif
+
 #ifdef _WIN32
   #include <winsock2.h>
   #include <ws2tcpip.h>
@@ -134,8 +139,6 @@
 #include "gencode.h"
 #include <pcap/namedb.h>
 #include "nametoaddr.h"
-
-#include "thread-local.h"
 
 #ifdef HAVE_OS_PROTO_H
 #include "os-proto.h"
@@ -264,7 +267,7 @@ pcap_nametonetaddr(const char *name)
 	 * *not* always get set if getnetbyname_r() succeeds.
 	 */
 	np = NULL;
-	err = getnetbyname_r(name, &result_buf, buf, sizeof buf, &np,
+ 	err = getnetbyname_r(name, &result_buf, buf, sizeof buf, &np,
 	    &h_errnoval);
 	if (err != 0) {
 		/*
@@ -273,9 +276,9 @@ pcap_nametonetaddr(const char *name)
 		 */
 		return 0;
 	}
-  #elif defined(HAVE_SOLARIS_GETNETBYNAME_R)
+  #elif defined(HAVE_SOLARIS_IRIX_GETNETBYNAME_R)
 	/*
-	 * We have Solaris's reentrant getnetbyname_r().
+	 * We have Solaris's and IRIX's reentrant getnetbyname_r().
 	 */
 	struct netent result_buf;
 	char buf[1024];	/* arbitrary size */
@@ -293,16 +296,16 @@ pcap_nametonetaddr(const char *name)
 	else
 		np = &result_buf;
   #else
-	/*
-	 * We don't have any getnetbyname_r(); either we have a
-	 * getnetbyname() that uses thread-specific data, in which
-	 * case we're thread-safe (sufficiently recent FreeBSD,
-	 * sufficiently recent Darwin-based OS, sufficiently recent
-	 * HP-UX, or we have the
-	 * traditional getnetbyname() (everything else, including
-	 * current NetBSD and OpenBSD), in which case we're not
-	 * thread-safe.
-	 */
+ 	/*
+ 	 * We don't have any getnetbyname_r(); either we have a
+ 	 * getnetbyname() that uses thread-specific data, in which
+ 	 * case we're thread-safe (sufficiently recent FreeBSD,
+ 	 * sufficiently recent Darwin-based OS, sufficiently recent
+ 	 * HP-UX, sufficiently recent Tru64 UNIX), or we have the
+ 	 * traditional getnetbyname() (everything else, including
+ 	 * current NetBSD and OpenBSD), in which case we're not
+ 	 * thread-safe.
+ 	 */
 	np = getnetbyname(name);
   #endif
 	if (np != NULL)
@@ -448,6 +451,14 @@ pcap_nametoport(const char *name, int *port, int *proto)
 		*proto = IPPROTO_UDP;
 		return 1;
 	}
+#if defined(ultrix) || defined(__osf__)
+	/* Special hack in case NFS isn't in /etc/services */
+	if (strcmp(name, "nfs") == 0) {
+		*port = 2049;
+		*proto = PROTO_UNDEF;
+		return 1;
+	}
+#endif
 	return 0;
 }
 
@@ -459,33 +470,40 @@ pcap_nametoport(const char *name, int *port, int *proto)
 int
 pcap_nametoportrange(const char *name, int *port1, int *port2, int *proto)
 {
+	u_int p1, p2;
 	char *off, *cpy;
 	int save_proto;
 
-	if ((cpy = strdup(name)) == NULL)
-		return 0;
+	if (sscanf(name, "%d-%d", &p1, &p2) != 2) {
+		if ((cpy = strdup(name)) == NULL)
+			return 0;
 
-	if ((off = strchr(cpy, '-')) == NULL) {
+		if ((off = strchr(cpy, '-')) == NULL) {
+			free(cpy);
+			return 0;
+		}
+
+		*off = '\0';
+
+		if (pcap_nametoport(cpy, port1, proto) == 0) {
+			free(cpy);
+			return 0;
+		}
+		save_proto = *proto;
+
+		if (pcap_nametoport(off + 1, port2, proto) == 0) {
+			free(cpy);
+			return 0;
+		}
 		free(cpy);
-		return 0;
-	}
 
-	*off = '\0';
-
-	if (pcap_nametoport(cpy, port1, proto) == 0) {
-		free(cpy);
-		return 0;
-	}
-	save_proto = *proto;
-
-	if (pcap_nametoport(off + 1, port2, proto) == 0) {
-		free(cpy);
-		return 0;
-	}
-	free(cpy);
-
-	if (*proto != save_proto)
+		if (*proto != save_proto)
+			*proto = PROTO_UNDEF;
+	} else {
+		*port1 = p1;
+		*port2 = p2;
 		*proto = PROTO_UNDEF;
+	}
 
 	return 1;
 }
@@ -514,9 +532,9 @@ pcap_nametoproto(const char *str)
 		 */
 		return 0;
 	}
-  #elif defined(HAVE_SOLARIS_GETNETBYNAME_R)
+  #elif defined(HAVE_SOLARIS_IRIX_GETNETBYNAME_R)
 	/*
-	 * We have Solaris's reentrant getprotobyname_r().
+	 * We have Solaris's and IRIX's reentrant getprotobyname_r().
 	 */
 	struct protoent result_buf;
 	char buf[1024];	/* arbitrary size */
@@ -534,16 +552,16 @@ pcap_nametoproto(const char *str)
 	else
 		p = &result_buf;
   #else
-	/*
-	 * We don't have any getprotobyname_r(); either we have a
-	 * getprotobyname() that uses thread-specific data, in which
-	 * case we're thread-safe (sufficiently recent FreeBSD,
-	 * sufficiently recent Darwin-based OS, sufficiently recent
-	 * HP-UX, Windows), or we have
+ 	/*
+ 	 * We don't have any getprotobyname_r(); either we have a
+ 	 * getprotobyname() that uses thread-specific data, in which
+ 	 * case we're thread-safe (sufficiently recent FreeBSD,
+ 	 * sufficiently recent Darwin-based OS, sufficiently recent
+ 	 * HP-UX, sufficiently recent Tru64 UNIX, Windows), or we have
 	 * the traditional getprotobyname() (everything else, including
-	 * current NetBSD and OpenBSD), in which case we're not
-	 * thread-safe.
-	 */
+ 	 * current NetBSD and OpenBSD), in which case we're not
+ 	 * thread-safe.
+ 	 */
 	p = getprotobyname(str);
   #endif
 	if (p != 0)
@@ -667,13 +685,6 @@ __pcap_atoin(const char *s, bpf_u_int32 *addr)
 	/* NOTREACHED */
 }
 
-/*
- * If 's' is not a string that is a well-formed DECnet address (aa.nnnn),
- * return zero.  Otherwise parse the address into the low 16 bits of 'addr'
- * and return a non-zero.  The binary DECnet address consists of a 6-bit area
- * number and a 10-bit node number; neither area 0 nor node 0 are valid for
- * normal addressing purposes, but either can appear on the wire.
- */
 int
 __pcap_atodn(const char *s, bpf_u_int32 *addr)
 {
@@ -681,76 +692,14 @@ __pcap_atodn(const char *s, bpf_u_int32 *addr)
 #define AREAMASK 0176000
 #define NODEMASK 01777
 
-	/* Initialize to squelch a compiler warning only. */
-	u_int node = 0, area = 0;
-	/*
-	 *               +--+             +--+
-	 *               |  |             |  |
-	 *               v  |             v  |
-	 * --> START --> AREA --> DOT --> NODE -->
-	 *       |          |     |        |
-	 *       |          v     v        |
-	 *       +--------> INVALID <------+
-	 */
-	enum {
-		START,
-		AREA,
-		DOT,
-		NODE,
-		INVALID
-	} fsm_state = START;
+	u_int node, area;
 
-	while (*s) {
-		switch (fsm_state) {
-		case START:
-			if (PCAP_ISDIGIT(*s)) {
-				area = *s - '0';
-				fsm_state = AREA;
-				break;
-			}
-			fsm_state = INVALID;
-			break;
-		case AREA:
-			if (*s == '.') {
-				fsm_state = DOT;
-				break;
-			}
-			if (PCAP_ISDIGIT(*s)) {
-				area = area * 10 + *s - '0';
-				if (area <= AREAMASK >> AREASHIFT)
-					break;
-			}
-			fsm_state = INVALID;
-			break;
-		case DOT:
-			if (PCAP_ISDIGIT(*s)) {
-				node = *s - '0';
-				fsm_state = NODE;
-				break;
-			}
-			fsm_state = INVALID;
-			break;
-		case NODE:
-			if (PCAP_ISDIGIT(*s)) {
-				node = node * 10 + *s - '0';
-				if (node <= NODEMASK)
-					break;
-			}
-			fsm_state = INVALID;
-			break;
-		case INVALID:
-			return 0;
-		} /* switch */
-		s++;
-	} /* while */
-	/*
-	 * This condition is false if the string comes from the lexer, but
-	 * let's not depend on that.
-	 */
-	if (fsm_state != NODE)
-		return 0;
+	if (sscanf(s, "%d.%d", &area, &node) != 2)
+		return(0);
 
-	*addr = area << AREASHIFT | node;
+	*addr = (area << AREASHIFT) & AREAMASK;
+	*addr |= (node & NODEMASK);
+
 	return(32);
 }
 
@@ -793,18 +742,16 @@ pcap_ether_aton(const char *s)
 #ifndef HAVE_ETHER_HOSTTON
 /*
  * Roll our own.
- *
- * This should be thread-safe, as we define the static variables
- * we use to be thread-local, and as pcap_next_etherent() does so
- * as well.
+ * XXX - not thread-safe, because pcap_next_etherent() isn't thread-
+ * safe!  Needs a mutex or a thread-safe pcap_next_etherent().
  */
 u_char *
 pcap_ether_hostton(const char *name)
 {
 	register struct pcap_etherent *ep;
 	register u_char *ap;
-	static thread_local FILE *fp = NULL;
-	static thread_local int init = 0;
+	static FILE *fp = NULL;
+	static int init = 0;
 
 	if (!init) {
 		fp = fopen(PCAP_ETHERS_FILE, "r");
@@ -838,14 +785,9 @@ pcap_ether_hostton(const char *name)
 {
 	register u_char *ap;
 	u_char a[6];
-	char namebuf[1024];
 
-	/*
-	 * In AIX 7.1 and 7.2: int ether_hostton(char *, struct ether_addr *);
-	 */
-	pcapint_strlcpy(namebuf, name, sizeof(namebuf));
 	ap = NULL;
-	if (ether_hostton(namebuf, (struct ether_addr *)a) == 0) {
+	if (ether_hostton(name, (struct ether_addr *)a) == 0) {
 		ap = (u_char *)malloc(6);
 		if (ap != NULL)
 			memcpy((char *)ap, (char *)a, 6);
@@ -853,3 +795,26 @@ pcap_ether_hostton(const char *name)
 	return (ap);
 }
 #endif
+
+/*
+ * XXX - not guaranteed to be thread-safe!
+ */
+int
+#ifdef	DECNETLIB
+__pcap_nametodnaddr(const char *name, u_short *res)
+{
+	struct nodeent *getnodebyname();
+	struct nodeent *nep;
+
+	nep = getnodebyname(name);
+	if (nep == ((struct nodeent *)0))
+		return(0);
+
+	memcpy((char *)res, (char *)nep->n_addr, sizeof(unsigned short));
+	return(1);
+#else
+__pcap_nametodnaddr(const char *name _U_, u_short *res _U_)
+{
+	return(0);
+#endif
+}

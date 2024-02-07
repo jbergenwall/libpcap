@@ -32,14 +32,13 @@
 #include <memory.h>
 #include <setjmp.h>
 #include <string.h>
-#include <limits.h> /* for SIZE_MAX */
+
 #include <errno.h>
 
 #include "pcap-int.h"
 
 #include "gencode.h"
 #include "optimize.h"
-#include "diag-control.h"
 
 #ifdef HAVE_OS_PROTO_H
 #include "os-proto.h"
@@ -141,21 +140,20 @@ lowest_set_bit(int mask)
 		abort();	/* mask is zero */
 	return (u_int)bit;
 }
-#elif defined(STRINGS_H_DECLARES_FFS)
+#elif defined(MSDOS) && defined(__DJGPP__)
   /*
-   * A non-Windows OS that has <strings.h> and declares ffs() there (typically
-   * UN*X conforming to a sufficiently recent version of the Single UNIX
-   * Specification, but also Haiku).
+   * MS-DOS with DJGPP, which declares ffs() in <string.h>, which
+   * we've already included.
+   */
+  #define lowest_set_bit(mask)	((u_int)(ffs((mask)) - 1))
+#elif (defined(MSDOS) && defined(__WATCOMC__)) || defined(STRINGS_H_DECLARES_FFS)
+  /*
+   * MS-DOS with Watcom C, which has <strings.h> and declares ffs() there,
+   * or some other platform (UN*X conforming to a sufficient recent version
+   * of the Single UNIX Specification).
    */
   #include <strings.h>
-  #define lowest_set_bit(mask)	((u_int)(ffs((mask)) - 1))
-#elif defined(__hpux)
-  /*
-   * HP-UX 11i v3, which declares ffs() in <string.h>, which we've already
-   * included.  Place this branch after the <strings.h> branch, in case a later
-   * release of HP-UX makes the declaration available via the standard header.
-   */
-  #define lowest_set_bit(mask)	((u_int)(ffs((mask)) - 1))
+  #define lowest_set_bit(mask)	(u_int)((ffs((mask)) - 1))
 #else
 /*
  * None of the above.
@@ -208,7 +206,7 @@ lowest_set_bit(int mask)
 #define AX_ATOM N_ATOMS
 
 /*
- * These data structures are used in a Cocke and Schwartz style
+ * These data structures are used in a Cocke and Shwarz style
  * value numbering scheme.  Since the flowgraph is acyclic,
  * exit values can be propagated from a node's predecessors
  * provided it is uniquely defined.
@@ -865,11 +863,11 @@ fold_op(opt_state_t *opt_state, struct stmt *s, bpf_u_int32 v0, bpf_u_int32 v1)
 	}
 	s->k = a;
 	s->code = BPF_LD|BPF_IMM;
-	opt_state->done = 0;
 	/*
 	 * XXX - optimizer loop detection.
 	 */
 	opt_state->non_branch_movement_performed = 1;
+	opt_state->done = 0;
 }
 
 static inline struct slist *
@@ -925,12 +923,12 @@ opt_peep(opt_state_t *opt_state, struct block *b)
 		if (s->s.code == BPF_ST &&
 		    next->s.code == (BPF_LDX|BPF_MEM) &&
 		    s->s.k == next->s.k) {
-			opt_state->done = 0;
-			next->s.code = BPF_MISC|BPF_TAX;
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
+			next->s.code = BPF_MISC|BPF_TAX;
 		}
 		/*
 		 * ld  #k	-->	ldx  #k
@@ -940,11 +938,11 @@ opt_peep(opt_state_t *opt_state, struct block *b)
 		    next->s.code == (BPF_MISC|BPF_TAX)) {
 			s->s.code = BPF_LDX|BPF_IMM;
 			next->s.code = BPF_MISC|BPF_TXA;
-			opt_state->done = 0;
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
 		}
 		/*
 		 * This is an ugly special case, but it happens
@@ -1023,11 +1021,11 @@ opt_peep(opt_state_t *opt_state, struct block *b)
 			s->s.code = NOP;
 			add->s.code = NOP;
 			tax->s.code = NOP;
-			opt_state->done = 0;
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
 		}
 	}
 	/*
@@ -1057,11 +1055,11 @@ opt_peep(opt_state_t *opt_state, struct block *b)
 				 */
 				b->s.k += opt_state->vmap[val].const_val;
 				last->s.code = NOP;
-				opt_state->done = 0;
 				/*
 				 * XXX - optimizer loop detection.
 				 */
 				opt_state->non_branch_movement_performed = 1;
+				opt_state->done = 0;
 			} else if (b->s.k == 0) {
 				/*
 				 * If the X register isn't a constant,
@@ -1074,11 +1072,11 @@ opt_peep(opt_state_t *opt_state, struct block *b)
 				 */
 				last->s.code = NOP;
 				b->s.code = BPF_JMP|BPF_JEQ|BPF_X;
-				opt_state->done = 0;
 				/*
 				 * XXX - optimizer loop detection.
 				 */
 				opt_state->non_branch_movement_performed = 1;
+				opt_state->done = 0;
 			}
 		}
 		/*
@@ -1090,11 +1088,11 @@ opt_peep(opt_state_t *opt_state, struct block *b)
 		else if (last->s.code == (BPF_ALU|BPF_SUB|BPF_K)) {
 			last->s.code = NOP;
 			b->s.k += last->s.k;
-			opt_state->done = 0;
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
 		}
 		/*
 		 * And, similarly, a constant AND can be simplified
@@ -1108,12 +1106,12 @@ opt_peep(opt_state_t *opt_state, struct block *b)
 			b->s.k = last->s.k;
 			b->s.code = BPF_JMP|BPF_K|BPF_JSET;
 			last->s.code = NOP;
-			opt_state->done = 0;
-			opt_not(b);
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
+			opt_not(b);
 		}
 	}
 	/*
@@ -1166,11 +1164,11 @@ opt_peep(opt_state_t *opt_state, struct block *b)
 			abort();
 		}
 		if (JF(b) != JT(b)) {
-			opt_state->done = 0;
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
 		}
 		if (v)
 			JF(b) = JT(b);
@@ -1208,11 +1206,11 @@ opt_stmt(opt_state_t *opt_state, struct stmt *s, bpf_u_int32 val[], int alter)
 			s->code = BPF_LD|BPF_ABS|BPF_SIZE(s->code);
 			s->k += opt_state->vmap[v].const_val;
 			v = F(opt_state, s->code, s->k, 0L);
-			opt_state->done = 0;
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
 		}
 		else
 			v = F(opt_state, s->code, s->k, v);
@@ -1339,13 +1337,13 @@ opt_stmt(opt_state_t *opt_state, struct stmt *s, bpf_u_int32 val[], int alter)
 				    s->k > 31)
 					opt_error(opt_state,
 					    "shift by more than 31 bits");
-				opt_state->done = 0;
-				val[A_ATOM] =
-					F(opt_state, s->code, val[A_ATOM], K(s->k));
 				/*
 				 * XXX - optimizer loop detection.
 				 */
 				opt_state->non_branch_movement_performed = 1;
+				opt_state->done = 0;
+				val[A_ATOM] =
+					F(opt_state, s->code, val[A_ATOM], K(s->k));
 			}
 			break;
 		}
@@ -1387,11 +1385,11 @@ opt_stmt(opt_state_t *opt_state, struct stmt *s, bpf_u_int32 val[], int alter)
 		if (alter && opt_state->vmap[v].is_const) {
 			s->code = BPF_LD|BPF_IMM;
 			s->k = opt_state->vmap[v].const_val;
-			opt_state->done = 0;
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
 		}
 		vstore(s, &val[A_ATOM], v, alter);
 		break;
@@ -1405,11 +1403,11 @@ opt_stmt(opt_state_t *opt_state, struct stmt *s, bpf_u_int32 val[], int alter)
 		if (alter && opt_state->vmap[v].is_const) {
 			s->code = BPF_LDX|BPF_IMM;
 			s->k = opt_state->vmap[v].const_val;
-			opt_state->done = 0;
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
 		}
 		vstore(s, &val[X_ATOM], v, alter);
 		break;
@@ -1441,12 +1439,12 @@ deadstmt(opt_state_t *opt_state, register struct stmt *s, register struct stmt *
 	atom = atomdef(s);
 	if (atom >= 0) {
 		if (last[atom]) {
-			opt_state->done = 0;
-			last[atom]->code = NOP;
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
+			last[atom]->code = NOP;
 		}
 		last[atom] = s;
 	}
@@ -1469,16 +1467,10 @@ opt_deadstores(opt_state_t *opt_state, register struct block *b)
 		if (last[atom] && !ATOMELEM(b->out_use, atom)) {
 			last[atom]->code = NOP;
 			/*
-			 * The store was removed as it's dead,
-			 * so the value stored into now has
-			 * an unknown value.
-			 */
-			vstore(0, &b->val[atom], VAL_UNKNOWN, 0);
-			opt_state->done = 0;
-			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
 		}
 }
 
@@ -1568,11 +1560,11 @@ opt_blk(opt_state_t *opt_state, struct block *b, int do_stmts)
 	     BPF_CLASS(b->s.code) == BPF_RET)) {
 		if (b->stmts != 0) {
 			b->stmts = 0;
-			opt_state->done = 0;
 			/*
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
 		}
 	} else {
 		opt_peep(opt_state, b);
@@ -1740,13 +1732,12 @@ opt_j(opt_state_t *opt_state, struct edge *ep)
 			 * Make this edge go to the block to
 			 * which the successor of that edge
 			 * goes.
-			 */
-			opt_state->done = 0;
-			ep->succ = JT(ep->succ);
-			/*
+			 *
 			 * XXX - optimizer loop detection.
 			 */
 			opt_state->non_branch_movement_performed = 1;
+			opt_state->done = 0;
+			ep->succ = JT(ep->succ);
 		}
 	}
 	/*
@@ -1823,7 +1814,7 @@ opt_j(opt_state_t *opt_state, struct edge *ep)
  *
  */
 static void
-or_pullup(opt_state_t *opt_state, struct block *b, struct block *root)
+or_pullup(opt_state_t *opt_state, struct block *b)
 {
 	bpf_u_int32 val;
 	int at_top;
@@ -1984,15 +1975,10 @@ or_pullup(opt_state_t *opt_state, struct block *b, struct block *root)
 	 * optimizer gets into one of those infinite loops.
 	 */
 	opt_state->done = 0;
-
-	/*
-	 * Recompute dominator sets as control flow graph has changed.
-	 */
-	find_dom(opt_state, root);
 }
 
 static void
-and_pullup(opt_state_t *opt_state, struct block *b, struct block *root)
+and_pullup(opt_state_t *opt_state, struct block *b)
 {
 	bpf_u_int32 val;
 	int at_top;
@@ -2085,11 +2071,6 @@ and_pullup(opt_state_t *opt_state, struct block *b, struct block *root)
 	 * optimizer gets into one of those infinite loops.
 	 */
 	opt_state->done = 0;
-
-	/*
-	 * Recompute dominator sets as control flow graph has changed.
-	 */
-	find_dom(opt_state, root);
 }
 
 static void
@@ -2117,7 +2098,7 @@ opt_blks(opt_state_t *opt_state, struct icode *ic, int do_stmts)
 		 * versions of the machine code, eventually returning
 		 * to the first version.  (We're really not doing a
 		 * full loop detection, we're just testing for two
-		 * passes in a row where we do nothing but
+		 * passes in a row where where we do nothing but
 		 * move branches.)
 		 */
 		return;
@@ -2136,8 +2117,8 @@ opt_blks(opt_state_t *opt_state, struct icode *ic, int do_stmts)
 	find_inedges(opt_state, ic->root);
 	for (i = 1; i <= maxlevel; ++i) {
 		for (p = opt_state->levels[i]; p; p = p->link) {
-			or_pullup(opt_state, p, ic->root);
-			and_pullup(opt_state, p, ic->root);
+			or_pullup(opt_state, p);
+			and_pullup(opt_state, p);
 		}
 	}
 }
@@ -2211,11 +2192,11 @@ opt_loop(opt_state_t *opt_state, struct icode *ic, int do_stmts)
 	 */
 	int loop_count = 0;
 	for (;;) {
+		opt_state->done = 1;
 		/*
 		 * XXX - optimizer loop detection.
 		 */
 		opt_state->non_branch_movement_performed = 0;
-		opt_state->done = 1;
 		find_levels(opt_state, ic);
 		find_dom(opt_state, ic->root);
 		find_closure(opt_state, ic->root);
@@ -2286,6 +2267,7 @@ bpf_optimize(struct icode *ic, char *errbuf)
 
 	memset(&opt_state, 0, sizeof(opt_state));
 	opt_state.errbuf = errbuf;
+	opt_state.non_branch_movement_performed = 0;
 	if (setjmp(opt_state.top_ctx)) {
 		opt_cleanup(&opt_state);
 		return -1;
@@ -2439,9 +2421,6 @@ opt_error(opt_state_t *opt_state, const char *fmt, ...)
 	}
 	longjmp(opt_state->top_ctx, 1);
 	/* NOTREACHED */
-#ifdef _AIX
-	PCAP_UNREACHABLE
-#endif /* _AIX */
 }
 
 /*
@@ -2627,7 +2606,7 @@ opt_init(opt_state_t *opt_state, struct icode *ic)
 	}
 
 	/*
-	 * Make sure the total memory required for both of them doesn't
+	 * Make sure the total memory required for both of them dosn't
 	 * overflow.
 	 */
 	if (block_memsize > SIZE_MAX - edge_memsize) {
@@ -2916,6 +2895,7 @@ icode_to_fcode(struct icode *ic, struct block *root, u_int *lenp,
 	    if (fp == NULL) {
 		(void)snprintf(errbuf, PCAP_ERRBUF_SIZE,
 		    "malloc");
+		free(fp);
 		return NULL;
 	    }
 	    memset((char *)fp, 0, sizeof(*fp) * n);
@@ -2945,9 +2925,6 @@ conv_error(conv_state_t *conv_state, const char *fmt, ...)
 	va_end(ap);
 	longjmp(conv_state->top_ctx, 1);
 	/* NOTREACHED */
-#ifdef _AIX
-	PCAP_UNREACHABLE
-#endif /* _AIX */
 }
 
 /*
@@ -2959,14 +2936,14 @@ conv_error(conv_state_t *conv_state, const char *fmt, ...)
  * otherwise, return 0.
  */
 int
-pcapint_install_bpf_program(pcap_t *p, struct bpf_program *fp)
+install_bpf_program(pcap_t *p, struct bpf_program *fp)
 {
 	size_t prog_size;
 
 	/*
 	 * Validate the program.
 	 */
-	if (!pcapint_validate_filter(fp->bf_insns, fp->bf_len)) {
+	if (!pcap_validate_filter(fp->bf_insns, fp->bf_len)) {
 		snprintf(p->errbuf, sizeof(p->errbuf),
 			"BPF program is not valid");
 		return (-1);
@@ -2981,7 +2958,7 @@ pcapint_install_bpf_program(pcap_t *p, struct bpf_program *fp)
 	p->fcode.bf_len = fp->bf_len;
 	p->fcode.bf_insns = (struct bpf_insn *)malloc(prog_size);
 	if (p->fcode.bf_insns == NULL) {
-		pcapint_fmt_errmsg_for_errno(p->errbuf, sizeof(p->errbuf),
+		pcap_fmt_errmsg_for_errno(p->errbuf, sizeof(p->errbuf),
 		    errno, "malloc");
 		return (-1);
 	}
@@ -3046,14 +3023,14 @@ dot_dump_edge(struct icode *ic, struct block *block, FILE *out)
  *
  * example DOT for BPF `ip src host 1.1.1.1' is:
     digraph BPF {
-	block0 [shape=ellipse, id="block-0" label="BLOCK0\n\n(000) ldh      [12]\n(001) jeq      #0x800           jt 2	jf 5" tooltip="val[A]=0 val[X]=0"];
-	block1 [shape=ellipse, id="block-1" label="BLOCK1\n\n(002) ld       [26]\n(003) jeq      #0x1010101       jt 4	jf 5" tooltip="val[A]=0 val[X]=0"];
-	block2 [shape=ellipse, id="block-2" label="BLOCK2\n\n(004) ret      #68" tooltip="val[A]=0 val[X]=0", peripheries=2];
-	block3 [shape=ellipse, id="block-3" label="BLOCK3\n\n(005) ret      #0" tooltip="val[A]=0 val[X]=0", peripheries=2];
-	"block0":se -> "block1":n [label="T"];
-	"block0":sw -> "block3":n [label="F"];
-	"block1":se -> "block2":n [label="T"];
-	"block1":sw -> "block3":n [label="F"];
+    	block0 [shape=ellipse, id="block-0" label="BLOCK0\n\n(000) ldh      [12]\n(001) jeq      #0x800           jt 2	jf 5" tooltip="val[A]=0 val[X]=0"];
+    	block1 [shape=ellipse, id="block-1" label="BLOCK1\n\n(002) ld       [26]\n(003) jeq      #0x1010101       jt 4	jf 5" tooltip="val[A]=0 val[X]=0"];
+    	block2 [shape=ellipse, id="block-2" label="BLOCK2\n\n(004) ret      #68" tooltip="val[A]=0 val[X]=0", peripheries=2];
+    	block3 [shape=ellipse, id="block-3" label="BLOCK3\n\n(005) ret      #0" tooltip="val[A]=0 val[X]=0", peripheries=2];
+    	"block0":se -> "block1":n [label="T"];
+    	"block0":sw -> "block3":n [label="F"];
+    	"block1":se -> "block2":n [label="T"];
+    	"block1":sw -> "block3":n [label="F"];
     }
  *
  *  After install graphviz on https://www.graphviz.org/, save it as bpf.dot

@@ -6,14 +6,14 @@
 #
 # This module defines the following variables:
 #
-# AirPcap_INCLUDE_DIR     - absolute path to the directory containing airpcap.h.
+# AIRPCAP_INCLUDE_DIR     - absolute path to the directory containing airpcap.h.
 #
-# AirPcap_LIBRARY         - relative or absolute path to the AirPcap library to
+# AIRPCAP_LIBRARY         - relative or absolute path to the AirPcap library to
 #                          link with. An absolute path is will be used if the
 #                          AirPcap library is not located in the compiler's
 #                          default search path.
 
-# AirPcap_FOUND           - TRUE if the AirPcap library *and* header are found.
+# AIRPCAP_FOUND           - TRUE if the AirPcap library *and* header are found.
 #
 # Hints and Backward Compatibility
 # ================================
@@ -46,24 +46,24 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif()
 
 # Find the header
-find_path(AirPcap_INCLUDE_DIR airpcap.h
+find_path(AIRPCAP_INCLUDE_DIR airpcap.h
   PATH_SUFFIXES include
 )
 
 # Find the library
-find_library(AirPcap_LIBRARY
+find_library(AIRPCAP_LIBRARY
   NAMES airpcap
 )
 
-# Set AirPcap_FOUND to TRUE if AirPcap_INCLUDE_DIR and AirPcap_LIBRARY are TRUE.
+# Set AIRPCAP_FOUND to TRUE if AIRPCAP_INCLUDE_DIR and AIRPCAP_LIBRARY are TRUE.
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(AirPcap
+find_package_handle_standard_args(AIRPCAP
   DEFAULT_MSG
-  AirPcap_INCLUDE_DIR
-  AirPcap_LIBRARY
+  AIRPCAP_INCLUDE_DIR
+  AIRPCAP_LIBRARY
 )
 
-mark_as_advanced(AirPcap_INCLUDE_DIR AirPcap_LIBRARY)
+mark_as_advanced(AIRPCAP_INCLUDE_DIR AIRPCAP_LIBRARY)
 
-set(AirPcap_INCLUDE_DIRS ${AirPcap_INCLUDE_DIR})
-set(AirPcap_LIBRARIES ${AirPcap_LIBRARY})
+set(AIRPCAP_INCLUDE_DIRS ${AIRPCAP_INCLUDE_DIR})
+set(AIRPCAP_LIBRARIES ${AIRPCAP_LIBRARY})

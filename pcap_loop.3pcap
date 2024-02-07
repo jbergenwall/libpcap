@@ -17,7 +17,7 @@
 .\" WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
 .\" MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 .\"
-.TH PCAP_LOOP 3PCAP "5 March 2022"
+.TH PCAP_LOOP 3PCAP "22 August 2020"
 .SH NAME
 pcap_loop, pcap_dispatch \- process packets from a live capture or savefile
 .SH SYNOPSIS
@@ -28,11 +28,17 @@ pcap_loop, pcap_dispatch \- process packets from a live capture or savefile
 .LP
 .ft B
 typedef void (*pcap_handler)(u_char *user, const struct pcap_pkthdr *h,
-    const u_char *bytes);
+.ti +8
+			     const u_char *bytes);
+.ft
+.LP
+.ft B
 int pcap_loop(pcap_t *p, int cnt,
-    pcap_handler callback, u_char *user);
+.ti +8
+pcap_handler callback, u_char *user);
 int pcap_dispatch(pcap_t *p, int cnt,
-    pcap_handler callback, u_char *user);
+.ti +8
+pcap_handler callback, u_char *user);
 .ft
 .fi
 .SH DESCRIPTION
@@ -88,10 +94,10 @@ but must not rely on it happening.
 .PP
 .I callback
 specifies a
-.B pcap_handler
+.I pcap_handler
 routine to be called with three arguments:
 a
-.B u_char
+.I u_char
 pointer which is passed in the
 .I user
 argument to
@@ -99,16 +105,16 @@ argument to
 or
 .BR pcap_dispatch (),
 a
-.B const struct pcap_pkthdr
+.I const struct pcap_pkthdr
 pointer pointing to the packet time stamp and lengths, and a
-.B const u_char
+.I const u_char
 pointer to the first
 .B caplen
 (as given in the
-.BR "struct pcap_pkthdr" ,
+.I struct pcap_pkthdr
 a pointer to which is passed to the callback routine)
 bytes of data from the packet.  The
-.B struct pcap_pkthdr
+.I struct pcap_pkthdr
 and the packet data are not to be freed by the callback routine, and are
 not guaranteed to be valid after the callback routine returns; if the
 code needs them to be valid after the callback, it must make a copy of
@@ -158,15 +164,12 @@ if
 .I cnt
 is exhausted or if, when reading from a ``savefile'', no more packets
 are available.  It returns
+.B PCAP_ERROR
+if an error occurs or
 .B PCAP_ERROR_BREAK
 if the loop terminated due to a call to
 .BR pcap_breakloop ()
-before any packets were processed,
-.B PCAP_ERROR_NOT_ACTIVATED
-if called on a capture handle that has been created but not activated,
-or
-.B PCAP_ERROR
-if another error occurs.
+before any packets were processed.
 It does
 .B not
 return when live packet buffer timeouts occur; instead, it attempts to
@@ -181,15 +184,12 @@ packets arrive, the timeout expires before any packets arrive, or if the
 file descriptor for the capture device is in non-blocking mode and no
 packets were available to be read) or if no more packets are available
 in a ``savefile.'' It returns
+.B PCAP_ERROR
+if an error occurs or
 .B PCAP_ERROR_BREAK
 if the loop terminated due to a call to
 .BR pcap_breakloop ()
-before any packets were processed,
-.B PCAP_ERROR_NOT_ACTIVATED
-if called on a capture handle that has been created but not activated,
-or
-.B PCAP_ERROR
-if another error occurs.
+before any packets were processed.
 .ft B
 If your application uses pcap_breakloop(),
 make sure that you explicitly check for PCAP_ERROR and PCAP_ERROR_BREAK,

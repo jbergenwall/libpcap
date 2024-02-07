@@ -39,7 +39,6 @@
 
 #include "pcap-int.h"
 #include "pcap-usb-linux.h"
-#include "pcap-usb-linux-common.h"
 #include "pcap/usb.h"
 
 #include "extract.h"
@@ -71,12 +70,7 @@
 #include <linux/usbdevice_fs.h>
 #endif /* HAVE_LINUX_USBDEVICE_FS_H */
 
-#include "diag-control.h"
-
 #define USB_IFACE "usbmon"
-
-#define USBMON_DEV_PREFIX "usbmon"
-#define USBMON_DEV_PREFIX_LEN	(sizeof USBMON_DEV_PREFIX - 1)
 #define USB_LINE_LEN 4096
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -117,10 +111,10 @@ struct mon_bin_mfetch {
 #define MON_IOCX_MFETCH _IOWR(MON_IOC_MAGIC, 7, struct mon_bin_mfetch)
 #define MON_IOCH_MFLUSH _IO(MON_IOC_MAGIC, 8)
 
-#define MON_BIN_SETUP	0x1 /* setup hdr is present*/
-#define MON_BIN_SETUP_ZERO	0x2 /* setup buffer is not available */
-#define MON_BIN_DATA_ZERO	0x4 /* data buffer is not available */
-#define MON_BIN_ERROR	0x8
+#define MON_BIN_SETUP 	0x1 /* setup hdr is present*/
+#define MON_BIN_SETUP_ZERO 	0x2 /* setup buffer is not available */
+#define MON_BIN_DATA_ZERO 	0x4 /* data buffer is not available */
+#define MON_BIN_ERROR 	0x8
 
 /*
  * Private data for capturing on Linux USB.
@@ -157,7 +151,7 @@ usb_dev_add(pcap_if_list_t *devlistp, int n, char *err_str)
 		 * "connected" vs. "disconnected", as that's a property
 		 * that would apply to a particular USB interface.
 		 */
-		if (pcapint_add_dev(devlistp, dev_name,
+		if (add_dev(devlistp, dev_name,
 		    PCAP_IF_CONNECTION_STATUS_NOT_APPLICABLE,
 		    "Raw USB traffic, all USB buses", err_str) == NULL)
 			return -1;
@@ -169,7 +163,7 @@ usb_dev_add(pcap_if_list_t *devlistp, int n, char *err_str)
 		 * PCAP_IF_CONNECTION_STATUS_DISCONNECTED?
 		 */
 		snprintf(dev_descr, 30, "Raw USB traffic, bus number %d", n);
-		if (pcapint_add_dev(devlistp, dev_name, 0, dev_descr, err_str) == NULL)
+		if (add_dev(devlistp, dev_name, 0, dev_descr, err_str) == NULL)
 			return -1;
 	}
 
@@ -179,6 +173,9 @@ usb_dev_add(pcap_if_list_t *devlistp, int n, char *err_str)
 int
 usb_findalldevs(pcap_if_list_t *devlistp, char *err_str)
 {
+	char usb_mon_dir[PATH_MAX];
+	char *usb_mon_prefix;
+	size_t usb_mon_prefix_len;
 	struct dirent* data;
 	int ret = 0;
 	DIR* dir;
@@ -187,10 +184,26 @@ usb_findalldevs(pcap_if_list_t *devlistp, char *err_str)
 
 	/*
 	 * We require 2.6.27 or later kernels, so we have binary-mode support.
-	 * The devices are of the form /dev/usbmon{N}.
-	 * Open /dev and scan it.
+	 * What do the device names look like?
+	 * Split LINUX_USB_MON_DEV into a directory that we'll
+	 * scan and a file name prefix that we'll check for.
 	 */
-	dir = opendir("/dev");
+	pcap_strlcpy(usb_mon_dir, LINUX_USB_MON_DEV, sizeof usb_mon_dir);
+	usb_mon_prefix = strrchr(usb_mon_dir, '/');
+	if (usb_mon_prefix == NULL) {
+		/*
+		 * This "shouldn't happen".  Just give up if it
+		 * does.
+		 */
+		return 0;
+	}
+	*usb_mon_prefix++ = '\0';
+	usb_mon_prefix_len = strlen(usb_mon_prefix);
+
+	/*
+	 * Open the directory and scan it.
+	 */
+	dir = opendir(usb_mon_dir);
 	if (dir != NULL) {
 		while ((ret == 0) && ((data = readdir(dir)) != 0)) {
 			name = data->d_name;
@@ -198,14 +211,13 @@ usb_findalldevs(pcap_if_list_t *devlistp, char *err_str)
 			/*
 			 * Is this a usbmon device?
 			 */
-			if (strncmp(name, USBMON_DEV_PREFIX,
-			    USBMON_DEV_PREFIX_LEN) != 0)
+			if (strncmp(name, usb_mon_prefix, usb_mon_prefix_len) != 0)
 				continue;	/* no */
 
 			/*
 			 * What's the device number?
 			 */
-			if (sscanf(&name[USBMON_DEV_PREFIX_LEN], "%d", &n) == 0)
+			if (sscanf(&name[usb_mon_prefix_len], "%d", &n) == 0)
 				continue;	/* failed */
 
 			ret = usb_dev_add(devlistp, n, err_str);
@@ -254,7 +266,7 @@ usb_set_ring_size(pcap_t* handle, int header_size)
 
 	/*
 	 * Will this get an error?
-	 * (There's no way to query the minimum or maximum, so we just
+	 * (There's no wqy to query the minimum or maximum, so we just
 	 * copy the value from the kernel source.  We don't round it
 	 * up to a multiple of the page size.)
 	 */
@@ -277,7 +289,7 @@ usb_set_ring_size(pcap_t* handle, int header_size)
 	}
 
 	if (ioctl(handle->fd, MON_IOCT_RING_SIZE, ring_size) == -1) {
-		pcapint_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "Can't set ring size from fd %d", handle->fd);
 		return -1;
 	}
@@ -373,13 +385,13 @@ probe_devices(int bus)
 		ctrl.bRequest = USB_REQ_GET_DESCRIPTOR;
 		ctrl.wValue = USB_DT_DEVICE << 8;
 		ctrl.wIndex = 0;
-		ctrl.wLength = sizeof(descriptor);
+ 		ctrl.wLength = sizeof(descriptor);
 #else
 		ctrl.requesttype = USB_DIR_IN | USB_TYPE_STANDARD | USB_RECIP_DEVICE;
 		ctrl.request = USB_REQ_GET_DESCRIPTOR;
 		ctrl.value = USB_DT_DEVICE << 8;
 		ctrl.index = 0;
-		ctrl.length = sizeof(descriptor);
+ 		ctrl.length = sizeof(descriptor);
 #endif
 		ctrl.data = descriptor;
 		ctrl.timeout = CTRL_TIMEOUT;
@@ -463,7 +475,7 @@ static int
 usb_activate(pcap_t* handle)
 {
 	struct pcap_usb_linux *handlep = handle->priv;
-	char		full_path[USB_LINE_LEN];
+	char 		full_path[USB_LINE_LEN];
 
 	/*
 	 * Turn a negative snapshot value (invalid), a snapshot value of
@@ -482,11 +494,11 @@ usb_activate(pcap_t* handle)
 	handle->linktype = DLT_USB_LINUX;
 
 	handle->inject_op = usb_inject_linux;
-	handle->setfilter_op = pcapint_install_bpf_program; /* no kernel filtering */
+	handle->setfilter_op = install_bpf_program; /* no kernel filtering */
 	handle->setdirection_op = usb_setdirection_linux;
 	handle->set_datalink_op = NULL;	/* can't change data link type */
-	handle->getnonblock_op = pcapint_getnonblock_fd;
-	handle->setnonblock_op = pcapint_setnonblock_fd;
+	handle->getnonblock_op = pcap_getnonblock_fd;
+	handle->setnonblock_op = pcap_setnonblock_fd;
 
 	/*get usb bus index from device name */
 	if (sscanf(handle->opt.device, USB_IFACE"%d", &handlep->bus_index) != 1)
@@ -500,8 +512,7 @@ usb_activate(pcap_t* handle)
 	 * We require 2.6.27 or later kernels, so we have binary-mode support.
 	 * Try to open the binary interface.
 	 */
-	snprintf(full_path, USB_LINE_LEN, "/dev/"USBMON_DEV_PREFIX"%d",
-	    handlep->bus_index);
+	snprintf(full_path, USB_LINE_LEN, LINUX_USB_MON_DEV"%d", handlep->bus_index);
 	handle->fd = open(full_path, O_RDONLY, 0);
 	if (handle->fd < 0)
 	{
@@ -521,30 +532,20 @@ usb_activate(pcap_t* handle)
 			 * doesn't exist (no "scan all buses"
 			 * device if the bus index is 0, no
 			 * such bus if the bus index isn't 0).
-			 *
-			 * For now, don't provide an error message;
-			 * if we can determine what the particular
-			 * problem is, we should report that.
 			 */
-			handle->errbuf[0] = '\0';
 			return PCAP_ERROR_NO_SUCH_DEVICE;
 
 		case EACCES:
 			/*
 			 * We didn't have permission to open it.
 			 */
-DIAG_OFF_FORMAT_TRUNCATION
-			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-			    "Attempt to open %s failed with EACCES - root privileges may be required",
-			    full_path);
-DIAG_ON_FORMAT_TRUNCATION
 			return PCAP_ERROR_PERM_DENIED;
 
 		default:
 			/*
 			 * Something went wrong.
 			 */
-			pcapint_fmt_errmsg_for_errno(handle->errbuf,
+			pcap_fmt_errmsg_for_errno(handle->errbuf,
 			    PCAP_ERRBUF_SIZE, errno,
 			    "Can't open USB bus file %s", full_path);
 			return PCAP_ERROR;
@@ -609,7 +610,7 @@ DIAG_ON_FORMAT_TRUNCATION
 	 * buffer */
 	handle->buffer = malloc(handle->bufsize);
 	if (!handle->buffer) {
-		pcapint_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "malloc");
 		close(handle->fd);
 		return PCAP_ERROR;
@@ -645,7 +646,7 @@ usb_stats_linux_bin(pcap_t *handle, struct pcap_stat *stats)
 	ret = ioctl(handle->fd, MON_IOCG_STATS, &st);
 	if (ret < 0)
 	{
-		pcapint_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "Can't read stats from fd %d", handle->fd);
 		return -1;
 	}
@@ -671,7 +672,7 @@ usb_read_linux_bin(pcap_t *handle, int max_packets _U_, pcap_handler callback, u
 
 	/* the usb header is going to be part of 'packet' data*/
 	info.hdr = (pcap_usb_header*) handle->buffer;
-	info.data = handle->buffer + sizeof(pcap_usb_header);
+	info.data = (u_char *)handle->buffer + sizeof(pcap_usb_header);
 	info.data_len = clen;
 
 	/* ignore interrupt system call errors */
@@ -688,7 +689,7 @@ usb_read_linux_bin(pcap_t *handle, int max_packets _U_, pcap_handler callback, u
 		if (errno == EAGAIN)
 			return 0;	/* no data there */
 
-		pcapint_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "Can't read from fd %d", handle->fd);
 		return -1;
 	}
@@ -735,7 +736,7 @@ usb_read_linux_bin(pcap_t *handle, int max_packets _U_, pcap_handler callback, u
 	pkth.ts.tv_usec = info.hdr->ts_usec;
 
 	if (handle->fcode.bf_insns == NULL ||
-	    pcapint_filter(handle->fcode.bf_insns, handle->buffer,
+	    pcap_filter(handle->fcode.bf_insns, handle->buffer,
 	      pkth.len, pkth.caplen)) {
 		handlep->packets_read++;
 		callback(user, &pkth, handle->buffer);
@@ -757,7 +758,6 @@ usb_read_linux_mmap(pcap_t *handle, int max_packets, pcap_handler callback, u_ch
 	struct mon_bin_mfetch fetch;
 	int32_t vec[VEC_SIZE];
 	struct pcap_pkthdr pkth;
-	u_char *bp;
 	pcap_usb_header_mmapped* hdr;
 	int nflush = 0;
 	int packets = 0;
@@ -767,40 +767,13 @@ usb_read_linux_mmap(pcap_t *handle, int max_packets, pcap_handler callback, u_ch
 
 	for (;;) {
 		int i, ret;
-		int limit;
-
-		if (PACKET_COUNT_IS_UNLIMITED(max_packets)) {
-			/*
-			 * There's no limit on the number of packets
-			 * to process, so try to fetch VEC_SIZE packets.
-			 */
+		int limit = max_packets - packets;
+		if (limit <= 0)
 			limit = VEC_SIZE;
-		} else {
-			/*
-			 * Try to fetch as many packets as we have left
-			 * to process, or VEC_SIZE packets, whichever
-			 * is less.
-			 *
-			 * At this point, max_packets > 0 (otherwise,
-			 * PACKET_COUNT_IS_UNLIMITED(max_packets)
-			 * would be true) and max_packets > packets
-			 * (packet starts out as 0, and the test
-			 * at the bottom of the loop exits if
-			 * max_packets <= packets), so limit is
-			 * guaranteed to be > 0.
-			 */
-			limit = max_packets - packets;
-			if (limit > VEC_SIZE)
-				limit = VEC_SIZE;
-		}
+		if (limit > VEC_SIZE)
+			limit = VEC_SIZE;
 
-		/*
-		 * Try to fetch as many events as possible, up to
-		 * the limit, and flush the events we've processed
-		 * earlier (nflush) - MON_IOCX_MFETCH does both
-		 * (presumably to reduce the number of system
-		 * calls in loops like this).
-		 */
+		/* try to fetch as many events as possible*/
 		fetch.offvec = vec;
 		fetch.nfetch = limit;
 		fetch.nflush = nflush;
@@ -818,7 +791,7 @@ usb_read_linux_mmap(pcap_t *handle, int max_packets, pcap_handler callback, u_ch
 			if (errno == EAGAIN)
 				return 0;	/* no data there */
 
-			pcapint_fmt_errmsg_for_errno(handle->errbuf,
+			pcap_fmt_errmsg_for_errno(handle->errbuf,
 			    PCAP_ERRBUF_SIZE, errno, "Can't mfetch fd %d",
 			    handle->fd);
 			return -1;
@@ -827,27 +800,8 @@ usb_read_linux_mmap(pcap_t *handle, int max_packets, pcap_handler callback, u_ch
 		/* keep track of processed events, we will flush them later */
 		nflush = fetch.nfetch;
 		for (i=0; i<fetch.nfetch; ++i) {
-			/*
-			 * XXX - we can't check break_loop here, as
-			 * we read the indices of packets into a
-			 * local variable, so if we're later called
-			 * to fetch more packets, those packets will
-			 * not be seen - and won't be flushed, either.
-			 *
-			 * Instead, we would have to keep the array
-			 * of indices in our private data, along
-			 * with the count of packets to flush - or
-			 * would have to flush the already-processed
-			 * packets if we break out of the loop here.
-			 */
-
-			/* Get a pointer to this packet's buffer */
-			bp = &handlep->mmapbuf[vec[i]];
-
-			/* That begins with a metadata header */
-			hdr = (pcap_usb_header_mmapped*) bp;
-
 			/* discard filler */
+			hdr = (pcap_usb_header_mmapped*) &handlep->mmapbuf[vec[i]];
 			if (hdr->event_type == '@')
 				continue;
 
@@ -892,19 +846,12 @@ usb_read_linux_mmap(pcap_t *handle, int max_packets, pcap_handler callback, u_ch
 				 */
 				pkth.len = sizeof(pcap_usb_header_mmapped) +
 				    (hdr->ndesc * sizeof (usb_isodesc)) + hdr->urb_len;
-
-				/*
-				 * Now clean it up if it's a completion
-				 * event for an incoming isochronous
-				 * transfer.
-				 */
-				fix_linux_usb_mmapped_length(&pkth, bp);
 			}
 			pkth.ts.tv_sec = (time_t)hdr->ts_sec;
 			pkth.ts.tv_usec = hdr->ts_usec;
 
 			if (handle->fcode.bf_insns == NULL ||
-			    pcapint_filter(handle->fcode.bf_insns, (u_char*) hdr,
+			    pcap_filter(handle->fcode.bf_insns, (u_char*) hdr,
 			      pkth.len, pkth.caplen)) {
 				handlep->packets_read++;
 				callback(user, &pkth, (u_char*) hdr);
@@ -912,18 +859,14 @@ usb_read_linux_mmap(pcap_t *handle, int max_packets, pcap_handler callback, u_ch
 			}
 		}
 
-		/*
-		 * If max_packets specifies "unlimited", we stop after
-		 * the first chunk.
-		 */
-		if (PACKET_COUNT_IS_UNLIMITED(max_packets) ||
-		    (packets >= max_packets))
+		/* with max_packets specifying "unlimited" we stop after the first chunk*/
+		if (PACKET_COUNT_IS_UNLIMITED(max_packets) || (packets == max_packets))
 			break;
 	}
 
 	/* flush pending events*/
 	if (ioctl(handle->fd, MON_IOCH_MFLUSH, nflush) == -1) {
-		pcapint_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "Can't mflush fd %d", handle->fd);
 		return -1;
 	}
@@ -940,5 +883,5 @@ usb_cleanup_linux_mmap(pcap_t* handle)
 		munmap(handlep->mmapbuf, handlep->mmapbuflen);
 		handlep->mmapbuf = NULL;
 	}
-	pcapint_cleanup_live_common(handle);
+	pcap_cleanup_live_common(handle);
 }

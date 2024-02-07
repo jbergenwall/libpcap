@@ -20,12 +20,12 @@
         VALUE "Comments",         "https://github.com/the-tcpdump-group/libpcap/"
         VALUE "CompanyName",      "The TCPdump Group"
         VALUE "FileDescription",  "System-Independent Interface for User-Level Packet Capture"
-        VALUE "FileVersion",      PACKAGE_VERSION
+        VALUE "FileVersion",      "PACKAGE_VERSION_DLL"
         VALUE "InternalName",     PACKAGE_NAME
         VALUE "LegalCopyright",   "Copyright (c) The TCPdump Group"
         VALUE "LegalTrademarks",  ""
-        VALUE "OriginalFilename", PACKAGE_NAME ".dll"
-        VALUE "ProductName",      "libpcap"
+        VALUE "OriginalFilename", "wpcap.dll"
+        VALUE "ProductName",      PACKAGE_NAME
         VALUE "ProductVersion",   PACKAGE_VERSION
       END
     END

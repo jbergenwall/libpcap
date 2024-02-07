@@ -34,7 +34,6 @@
 #include <string.h>
 
 #include "pcap-int.h"
-#include "pcap-util.h"
 
 #include "pcap-common.h"
 
@@ -203,7 +202,7 @@ struct pcap_ng_if {
 	uint64_t tsresol;		/* time stamp resolution */
 	tstamp_scale_type_t scale_type;	/* how to scale */
 	uint64_t scale_factor;		/* time stamp scale factor for power-of-10 tsresol */
-	int64_t tsoffset;		/* time stamp offset */
+	uint64_t tsoffset;		/* time stamp offset */
 };
 
 /*
@@ -263,7 +262,7 @@ read_bytes(FILE *fp, void *buf, size_t bytes_to_read, int fail_on_eof,
 	amt_read = fread(buf, 1, bytes_to_read, fp);
 	if (amt_read != bytes_to_read) {
 		if (ferror(fp)) {
-			pcapint_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
+			pcap_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
 			    errno, "error reading dump file");
 		} else {
 			if (amt_read == 0 && !fail_on_eof)
@@ -352,7 +351,7 @@ read_block(FILE *fp, pcap_t *p, struct block_cursor *cursor, char *errbuf)
 	 * of the block.
 	 */
 	memcpy(p->buffer, &bhdr, sizeof(bhdr));
-	bdata = p->buffer + sizeof(bhdr);
+	bdata = (u_char *)p->buffer + sizeof(bhdr);
 	data_remaining = bhdr.total_length - sizeof(bhdr);
 	if (read_bytes(fp, bdata, data_remaining, 1, errbuf) == -1)
 		return (-1);
@@ -460,7 +459,7 @@ get_optvalue_from_block_data(struct block_cursor *cursor,
 
 static int
 process_idb_options(pcap_t *p, struct block_cursor *cursor, uint64_t *tsresol,
-    int64_t *tsoffset, int *is_binary, char *errbuf)
+    uint64_t *tsoffset, int *is_binary, char *errbuf)
 {
 	struct option_header *opthdr;
 	void *optvalue;
@@ -595,7 +594,7 @@ add_interface(pcap_t *p, struct interface_description_block *idbp,
 {
 	struct pcap_ng_sf *ps;
 	uint64_t tsresol;
-	int64_t tsoffset;
+	uint64_t tsoffset;
 	int is_binary;
 
 	ps = p->priv;
@@ -820,7 +819,7 @@ pcap_ng_check_header(const uint8_t *magic, FILE *fp, u_int precision,
 	amt_read = fread(&total_length, 1, sizeof(total_length), fp);
 	if (amt_read < sizeof(total_length)) {
 		if (ferror(fp)) {
-			pcapint_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
+			pcap_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
 			    errno, "error reading dump file");
 			*err = 1;
 			return (NULL);	/* fail */
@@ -835,7 +834,7 @@ pcap_ng_check_header(const uint8_t *magic, FILE *fp, u_int precision,
 	amt_read = fread(&byte_order_magic, 1, sizeof(byte_order_magic), fp);
 	if (amt_read < sizeof(byte_order_magic)) {
 		if (ferror(fp)) {
-			pcapint_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
+			pcap_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
 			    errno, "error reading dump file");
 			*err = 1;
 			return (NULL);	/* fail */
@@ -943,12 +942,12 @@ pcap_ng_check_header(const uint8_t *magic, FILE *fp, u_int precision,
 	 * of the SHB.
 	 */
 	bhdrp = (struct block_header *)p->buffer;
-	shbp = (struct section_header_block *)(p->buffer + sizeof(struct block_header));
+	shbp = (struct section_header_block *)((u_char *)p->buffer + sizeof(struct block_header));
 	bhdrp->block_type = magic_int;
 	bhdrp->total_length = total_length;
 	shbp->byte_order_magic = byte_order_magic;
 	if (read_bytes(fp,
-	    p->buffer + (sizeof(magic_int) + sizeof(total_length) + sizeof(byte_order_magic)),
+	    (u_char *)p->buffer + (sizeof(magic_int) + sizeof(total_length) + sizeof(byte_order_magic)),
 	    total_length - (sizeof(magic_int) + sizeof(total_length) + sizeof(byte_order_magic)),
 	    1, errbuf) == -1)
 		goto fail;
@@ -1060,7 +1059,7 @@ pcap_ng_check_header(const uint8_t *magic, FILE *fp, u_int precision,
 
 done:
 	p->linktype = linktype_to_dlt(idbp->linktype);
-	p->snapshot = pcapint_adjust_snapshot(p->linktype, idbp->snaplen);
+	p->snapshot = pcap_adjust_snapshot(p->linktype, idbp->snaplen);
 	p->linktype_ext = 0;
 
 	/*
@@ -1090,12 +1089,12 @@ pcap_ng_cleanup(pcap_t *p)
 	struct pcap_ng_sf *ps = p->priv;
 
 	free(ps->ifaces);
-	pcapint_sf_cleanup(p);
+	sf_cleanup(p);
 }
 
 /*
  * Read and return the next packet from the savefile.  Return the header
- * in hdr and a pointer to the contents in data.  Return 1 on success, 0
+ * in hdr and a pointer to the contents in data.  Return 0 on success, 1
  * if there were no more packets, and -1 on an error.
  */
 static int
@@ -1124,7 +1123,7 @@ pcap_ng_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 		 */
 		status = read_block(fp, p, &cursor, p->errbuf);
 		if (status == 0)
-			return (0);	/* EOF */
+			return (1);	/* EOF */
 		if (status == -1)
 			return (-1);	/* error */
 		switch (cursor.block_type) {
@@ -1261,7 +1260,7 @@ pcap_ng_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 			 * snapshot length.
 			 */
 			if ((bpf_u_int32)p->snapshot !=
-			    pcapint_adjust_snapshot(p->linktype, idbp->snaplen)) {
+			    pcap_adjust_snapshot(p->linktype, idbp->snaplen)) {
 				snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 				    "an interface has a snapshot length %u different from the snapshot length of the first interface",
 				    idbp->snaplen);
@@ -1512,7 +1511,8 @@ found:
 	if (*data == NULL)
 		return (-1);
 
-	pcapint_post_process(p->linktype, p->swapped, hdr, *data);
+	if (p->swapped)
+		swap_pseudo_headers(p->linktype, hdr, *data);
 
-	return (1);
+	return (0);
 }

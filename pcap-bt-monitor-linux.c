@@ -80,7 +80,7 @@ bt_monitor_findalldevs(pcap_if_list_t *devlistp, char *err_str)
      * more than there's a notion of "connected" or "disconnected"
      * for the "any" device.
      */
-    if (pcapint_add_dev(devlistp, INTERFACE_NAME,
+    if (add_dev(devlistp, INTERFACE_NAME,
                 PCAP_IF_WIRELESS|PCAP_IF_CONNECTION_STATUS_NOT_APPLICABLE,
                 "Bluetooth Linux Monitor", err_str) == NULL)
     {
@@ -102,7 +102,7 @@ bt_monitor_read(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_ch
     u_char *pktd;
     struct hci_mon_hdr hdr;
 
-    pktd = handle->buffer + BT_CONTROL_SIZE;
+    pktd = (u_char *)handle->buffer + BT_CONTROL_SIZE;
     bthdr = (pcap_bluetooth_linux_monitor_header*)(void *)pktd;
 
     iv[0].iov_base = &hdr;
@@ -131,7 +131,7 @@ bt_monitor_read(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_ch
             /* Nonblocking mode, no data */
             return 0;
         }
-        pcapint_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+        pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
             errno, "Can't receive packet");
         return -1;
     }
@@ -151,7 +151,7 @@ bt_monitor_read(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_ch
     bthdr->opcode = htons(hdr.opcode);
 
     if (handle->fcode.bf_insns == NULL ||
-        pcapint_filter(handle->fcode.bf_insns, pktd, pkth.len, pkth.caplen)) {
+        pcap_filter(handle->fcode.bf_insns, pktd, pkth.len, pkth.caplen)) {
         callback(user, &pkth, pktd);
         return 1;
     }
@@ -204,23 +204,23 @@ bt_monitor_activate(pcap_t* handle)
 
     handle->read_op = bt_monitor_read;
     handle->inject_op = bt_monitor_inject;
-    handle->setfilter_op = pcapint_install_bpf_program; /* no kernel filtering */
+    handle->setfilter_op = install_bpf_program; /* no kernel filtering */
     handle->setdirection_op = NULL; /* Not implemented */
     handle->set_datalink_op = NULL; /* can't change data link type */
-    handle->getnonblock_op = pcapint_getnonblock_fd;
-    handle->setnonblock_op = pcapint_setnonblock_fd;
+    handle->getnonblock_op = pcap_getnonblock_fd;
+    handle->setnonblock_op = pcap_setnonblock_fd;
     handle->stats_op = bt_monitor_stats;
 
     handle->fd = socket(AF_BLUETOOTH, SOCK_RAW, BTPROTO_HCI);
     if (handle->fd < 0) {
-        pcapint_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+        pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
             errno, "Can't create raw socket");
         return PCAP_ERROR;
     }
 
     handle->buffer = malloc(handle->bufsize);
     if (!handle->buffer) {
-        pcapint_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+        pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
             errno, "Can't allocate dump buffer");
         goto close_fail;
     }
@@ -231,14 +231,14 @@ bt_monitor_activate(pcap_t* handle)
     addr.hci_channel = HCI_CHANNEL_MONITOR;
 
     if (bind(handle->fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-        pcapint_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+        pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
             errno, "Can't attach to interface");
         goto close_fail;
     }
 
     opt = 1;
     if (setsockopt(handle->fd, SOL_SOCKET, SO_TIMESTAMP, &opt, sizeof(opt)) < 0) {
-        pcapint_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+        pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
             errno, "Can't enable time stamp");
         goto close_fail;
     }
@@ -248,7 +248,7 @@ bt_monitor_activate(pcap_t* handle)
     return 0;
 
 close_fail:
-    pcapint_cleanup_live_common(handle);
+    pcap_cleanup_live_common(handle);
     return err;
 }
 

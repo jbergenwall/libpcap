@@ -17,7 +17,7 @@
 .\" WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
 .\" MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 .\"
-.TH PCAP 3PCAP "28 January 2024"
+.TH PCAP 3PCAP "9 September 2020"
 .SH NAME
 pcap \- Packet Capture library
 .SH SYNOPSIS
@@ -272,7 +272,7 @@ On some platforms, the time stamp given to packets on live captures can
 come from different sources that can have different resolutions or that
 can have different relationships to the time values for the current time
 supplied by routines on the native operating system.  See
-.BR \%pcap-tstamp (@MAN_MISC_INFO@)
+.BR pcap-tstamp (@MAN_MISC_INFO@)
 for a list of time stamp types.
 .IP
 The time stamp type is set with
@@ -280,6 +280,12 @@ The time stamp type is set with
 .PP
 Reading packets from a network interface may require that you have
 special privileges:
+.TP
+.B Under SunOS 3.x or 4.x with NIT or BPF:
+You must have read access to
+.I /dev/nit
+or
+.IR /dev/bpf* .
 .TP
 .B Under Solaris with DLPI:
 You must have read/write access to the network pseudo device, e.g.
@@ -309,6 +315,10 @@ command.
 You must be root or the application capturing packets must be installed
 setuid to root.
 .TP
+.B Under IRIX with snoop:
+You must be root or the application capturing packets must be installed
+setuid to root.
+.TP
 .B Under Linux:
 You must be root or the application capturing packets must be installed
 setuid to root, unless your distribution has a kernel
@@ -316,6 +326,22 @@ that supports capability bits such as CAP_NET_RAW and code to allow
 those capability bits to be given to particular accounts and to cause
 those bits to be set on a user's initial processes when they log in, in
 which case you must have CAP_NET_RAW in order to capture.
+.TP
+.B Under ULTRIX and Digital UNIX/Tru64 UNIX:
+Any user may capture network traffic.
+However, no user (not even the super-user) can capture in promiscuous
+mode on an interface unless the super-user has enabled promiscuous-mode
+operation on that interface using
+.IR pfconfig (8),
+and no user (not even the super-user) can capture unicast traffic
+received by or sent by the machine on an interface unless the super-user
+has enabled copy-all-mode operation on that interface using
+.IR pfconfig ,
+so
+.I useful
+packet capture on an interface probably requires that either
+promiscuous-mode or copy-all-mode operation, or both modes of
+operation, be enabled on that interface.
 .TP
 .B Under BSD (this includes macOS):
 You must have read access to
@@ -572,35 +598,35 @@ The callback for
 and
 .BR pcap_loop ()
 is supplied a pointer to a
-.BR "struct pcap_pkthdr" ,
+.IR "struct pcap_pkthdr" ,
 which includes the following members:
 .RS
 .TP
 .B ts
 a
-.B struct timeval
+.I struct timeval
 containing the time when the packet was captured
 .TP
 .B caplen
 a
-.B bpf_u_int32
+.I bpf_u_int32
 giving the number of bytes of the packet that are available from the
 capture
 .TP
 .B len
 a
-.B bpf_u_int32
+.I bpf_u_int32
 giving the length of the packet, in bytes (which might be more than the
 number of bytes available from the capture, if the length of the packet
 is larger than the maximum number of bytes to capture).
 .RE
 .PP
 The callback is also supplied a
-.B const u_char
+.I const u_char
 pointer to the first
 .B caplen
 (as given in the
-.B struct pcap_pkthdr
+.I struct pcap_pkthdr
 mentioned above)
 bytes of data from the packet.  This won't necessarily be the entire
 packet; to capture the entire packet, you will have to provide a value
@@ -615,10 +641,10 @@ performed will limit the amount of packet data available.
 .PP
 .BR pcap_next ()
 is passed an argument that points to a
-.B struct pcap_pkthdr
+.I struct pcap_pkthdr
 structure, and fills it in with the time stamp and length values for the
 packet.  It returns a
-.B const u_char *
+.I const u_char
 to the first
 .B caplen
 bytes of the packet on success, and
@@ -627,11 +653,11 @@ on error.
 .PP
 .BR pcap_next_ex ()
 is passed two pointer arguments, one of which points to a
-.B struct pcap_pkthdr *
-and the other points to a
-.BR "const u_char *" .
+.IR struct pcap_pkthdr *
+and one of which points to a
+.IR "const u_char" *.
 It sets the first pointer to point to a
-.B struct pcap_pkthdr
+.I struct pcap_pkthdr
 structure with the time stamp and length values for the packet, and sets
 the second pointer to point to the first
 .B caplen
@@ -694,7 +720,7 @@ periodically for packets; in that case,
 will return a pointer to a
 .B struct timeval
 whose value can be used as a timeout in those routines.  When the
-routine returns, an attempt should be made to read packets from the
+routine returns, an attmept should be made to read packets from the
 device.  If
 .BR pcap_get_required_select_timeout ()
 returns
@@ -758,17 +784,17 @@ get the state of non-blocking mode for a
 attempt to get a descriptor for a
 .B pcap_t
 that can be used in calls such as
-.BR select ()
+.BR select (2)
 and
-.BR poll ()
+.BR poll (2)
 .TP
 .BR pcap_get_required_select_timeout (3PCAP)
 attempt to get a timeout required for using a
 .B pcap_t
 in calls such as
-.BR select ()
+.BR select (2)
 and
-.BR poll ()
+.BR poll (2)
 .RE
 .SS Filters
 In order to cause only certain packets to be returned when reading
@@ -778,7 +804,7 @@ copying ``uninteresting'' packets from the kernel to user mode.
 .PP
 A filter can be specified as a text string; the syntax and semantics of
 the string are as described by
-.BR \%pcap-filter (@MAN_MISC_INFO@).
+.BR pcap-filter (@MAN_MISC_INFO@).
 A filter string is compiled into a program in a pseudo-machine-language
 by
 .BR pcap_compile ()
@@ -868,19 +894,13 @@ call
 .BR pcap_dump_open (3PCAP)
 open a
 .B pcap_dumper_t
-for a ``savefile``, given a pathname, replacing any existing data
-.TP
-.BR pcap_dump_open_append (3PCAP)
-open a
-.B pcap_dumper_t
-for a ``savefile``, given a pathname, appending to the existing data
+for a ``savefile``, given a pathname
 .TP
 .BR pcap_dump_fopen (3PCAP)
 open a
 .B pcap_dumper_t
 for a ``savefile``, given a
-.BR "FILE\ *" ,
-assuming an empty file
+.B "FILE\ *"
 .TP
 .BR pcap_dump_close (3PCAP)
 close a
@@ -1007,7 +1027,7 @@ script or some other configuration script to check whether the libpcap
 .BR autoconf (1),
 .BR tcpdump (1),
 .BR tcpslice (1),
-.BR \%pcap-filter (@MAN_MISC_INFO@),
+.BR pcap-filter (@MAN_MISC_INFO@),
 .BR pfconfig (8),
 .BR usermod (@MAN_ADMIN_COMMANDS@)
 .SH AUTHORS
@@ -1024,7 +1044,7 @@ The current version is available from "The Tcpdump Group"'s Web site at
 .I https://www.tcpdump.org/
 .RE
 .SH BUGS
-To report a security issue please send an e-mail to \%security@tcpdump.org.
+To report a security issue please send an e-mail to security@tcpdump.org.
 .LP
 To report bugs and other problems, contribute patches, request a
 feature, provide generic feedback etc please see the file

@@ -44,8 +44,8 @@
 // otherwise; the return value is used only by callers that call us
 // for active mode.
 //
-int daemon_serviceloop(PCAP_SOCKET sockctrl, int isactive, char *passiveClients,
-    int nullAuthAllowed, char *data_port, int uses_ssl);
+int daemon_serviceloop(SOCKET sockctrl, int isactive, char *passiveClients,
+    int nullAuthAllowed, int uses_ssl);
 
 void sleep_secs(int secs);
 

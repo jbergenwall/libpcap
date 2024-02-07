@@ -127,7 +127,7 @@ EXTRACT_BE_S_8(const void *p)
  * cast the pointer to point to one of those, and fetch through it;
  * the GCC manual doesn't appear to explicitly say that
  * __attribute__((packed)) causes the compiler to generate unaligned-safe
- * code, but it appears to do so.
+ * code, but it apppears to do so.
  *
  * We do this in case the compiler can generate code using those
  * instructions to do an unaligned load and pass stuff to "ntohs()" or
@@ -229,7 +229,7 @@ EXTRACT_BE_S_8(const void *p)
  * quantities the hard way - fetch the bytes one at a time and
  * assemble them.
  *
- * XXX - ARM is a special case.  ARMv1 through ARMv5 didn't support
+ * XXX - ARM is a special case.  ARMv1 through ARMv5 didn't suppory
  * unaligned loads; ARMv6 and later support it *but* have a bit in
  * the system control register that the OS can set and that causes
  * unaligned loads to fault rather than succeeding.
